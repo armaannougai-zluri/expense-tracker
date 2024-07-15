@@ -106,7 +106,7 @@ app.post("/file", upload.single('file'), async (req, res) => {
             lineNumber++;
             await em.persistAndFlush(ts);
             // console.log("done\n");
-            // clients.forEach(client => client.write(`data: ${lineNumber}\n\n`))
+            clients.forEach(client => client.write(`data: ${lineNumber}\n\n`))
         })
         .on('end', () => {
             console.log("full done\n");

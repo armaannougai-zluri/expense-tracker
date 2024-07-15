@@ -16,8 +16,8 @@ export class transactions {
     @Property()
     description!: string;
 
-    @Formula('(to_tsvector(\'english\', content))')
-    tsvector!: string;
+    // @Formula('(to_tsvector(\'english\', content))')
+    // tsvector!: string;
 
     constructor(id: string, date: Date, currency: string, qty: number, converted_qty: number, description: string) {
         this.id = id
