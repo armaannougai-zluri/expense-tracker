@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as React from 'react';
-
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { CssVarsProvider } from '@mui/joy/styles';
 import CssBaseline from '@mui/joy/CssBaseline';
 import Box from '@mui/joy/Box';
@@ -19,9 +20,7 @@ import IconButton, { iconButtonClasses } from '@mui/joy/IconButton';
 
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 
-import Sidebar from './components/Sidebar';
 import OrderTable from './components/OrderTable';
-import Header from './components/Header';
 import { Add, PlusOne, UploadFile } from '@mui/icons-material';
 import { v4 as uuid } from 'uuid';
 
@@ -65,11 +64,8 @@ export default function JoyOrderDashboardTemplate() {
           'Content-Type': 'application/json'
         }, body: JSON.stringify({ page: page })
       })).json();
-      const newdata = data.map((e) => {
-        const newTransaction = new transaction(e.id, new Date(e.date), e.original_amount_currency, e.original_amount_qty, e.converted_amount_qty, e.description);
-        return newTransaction;
-      })
-      setRows(newdata);
+      const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
+      setRows(newData);
     }
     getConversionRates();
     getTransactionList();
@@ -81,13 +77,12 @@ export default function JoyOrderDashboardTemplate() {
 
   return (
     (openUploadFile == true) ?
-      <UploadFileDialog open={openUploadFile} setOpen={setOpenUploadFile} /> :
+      <UploadFileDialog open={openUploadFile} setOpen={setOpenUploadFile} setRows={setRows} setPage={setPage} /> :
       (openAddTransaction == true) ?
-        <AddTransaction open={openAddTransaction} setOpen={setOpenAddTransaction} id={uuid()} rows={rows} setRows={setRows} currency_rates={currency_rates} />
+        <AddTransaction open={openAddTransaction} setOpen={setOpenAddTransaction} rows={rows} setRows={setRows} currency_rates={currency_rates} setPage={setPage} page={page} />
         : (<CssVarsProvider disableTransitionOnChange>
           <CssBaseline />
           <Box sx={{ display: 'flex', minHeight: '100dvh' }}>
-            <Header />
             <Box
               component="main"
               className="MainContent"
@@ -153,13 +148,6 @@ export default function JoyOrderDashboardTemplate() {
                   >
                     Add Transaction
                   </Button>
-                  <Button
-                    color="primary"
-                    startDecorator={<DownloadRoundedIcon />}
-                    size="md"
-                  >
-                    Download PDF
-                  </Button>
                 </Box>
               </Box>
               <OrderTable rows={rows} convert_currency={convert_currency} setRows={setRows} openEditTransaction={openEditTransaction} setOpenEditTransaction={setOpenEditTransaction} currency_rates={currency_rates} page={page} />
@@ -201,6 +189,7 @@ export default function JoyOrderDashboardTemplate() {
                 </Button>
               </Box>
             </Box>
+            <ToastContainer position="bottom-right" limit={4}/>
           </Box>
         </CssVarsProvider>)
   )

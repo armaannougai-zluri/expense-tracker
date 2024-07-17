@@ -48,36 +48,61 @@ function convertDateFormat(dateString: string): string {
 
 app.post("/transaction", async (req, res) => {
     const em = orm.em.fork();
-    const t1 = new transactions(req.body.id, new Date(req.body.date), req.body.original_amount_currency, req.body.original_amount_qty, req.body.converted_amount_qty, req.body.description);
-    await em.persistAndFlush(t1);
-    console.log("transaction inserted: ", t1);
-    res.sendStatus(200);
+    if (req.body.id == undefined) {
+        const t1 = new transactions(new Date(req.body.date), req.body.original_amount_currency, req.body.original_amount_qty, req.body.converted_amount_qty, req.body.description);
+        await em.persistAndFlush(t1);
+        res.sendStatus(200);
+    } else {
+        const t1 = await em.findOne(transactions, { id: req.body.id });
+        if (t1){
+            t1.date = req.body.date;
+            t1.original_amount_currency = req.body.original_amount_currency;
+            t1.original_amount_qty = req.body.original_amount_qty;
+            t1.converted_amount_qty = req.body.converted_amount_qty;
+            t1.description = req.body.description;
+            await em.persistAndFlush(t1);
+        }
+        res.sendStatus(200);
+    }
 });
 
 app.post("/transactions", async (req, res) => {
     const page = req.body.page;
     const em = orm.em.fork();
     const [result, total] = await em.findAndCount(transactions, {}, {
-        limit: 10,
-        offset: (page - 1) * 10
+        limit: 15,
+        offset: (page - 1) * 15,
+        orderBy: [{ id: -1 }]
     });
-    const data = result.map(e => { return new transactions(e.id, e.date, e.original_amount_currency, e.original_amount_qty, e.converted_amount_qty, e.description); });
-    res.send(JSON.stringify(data));
+    res.send(JSON.stringify(result));
 });
 
 app.post("/delete", async (req: Request, res: Response) => {
     const em = orm.em.fork();
     const tns = req.body as Array<transactions>;
-    const ts = tns.map((e) => {
-        return new transactions(e.id, new Date(e.date), e.original_amount_currency, e.original_amount_qty, e.converted_amount_qty, e.description);
-    })
-    await em.remove(ts).flush();
-    res.sendStatus(200);
+    let cnt = 0;
+    await em.transactional(async (em) => {
+        for (const e of tns) {
+            const ts = await em.findOne(transactions, { id: e.id });
+            if (ts) {
+                cnt++;
+                em.remove(ts);
+            }
+        }
+    }).then(() => {
+        em.flush();
+        if (cnt)
+            res.send(JSON.stringify({ status: 200, count: tns.length }));
+        else
+            res.send(JSON.stringify({ status: 500 }));
+
+    }).catch(() => {
+        res.send(JSON.stringify({ status: 500 }));
+    });
 });
 
 app.get("/rates", async (req, res) => {
-    console.log("rated\n");
-
+    console.log("giving back rates\n");
     res.send(JSON.stringify(CONV_RATES));
 });
 
@@ -101,17 +126,15 @@ app.post("/file", upload.single('file'), async (req, res) => {
                 newArray[0] = convertDateFormat(newArray[0]);
 
             const ts = new transactions(
-                uuid(), new Date(newArray[0]), newArray[3], parseFloat(newArray[2]), formatNumber(parseFloat(newArray[2]) / CONV_RATES[newArray[3]]), newArray[1]
+                new Date(newArray[0]), newArray[3], parseFloat(newArray[2]), formatNumber(parseFloat(newArray[2]) / CONV_RATES[newArray[3]]), newArray[1]
             )
             lineNumber++;
             await em.persistAndFlush(ts);
-            // console.log("done\n");
             clients.forEach(client => client.write(`data: ${lineNumber}\n\n`))
         })
         .on('end', () => {
-            console.log("full done\n");
             res.status(200).json({ message: 'File processed successfully', data: results });
-            clients.forEach(client => client.write(`data: complete\n\n`));
+            clients.forEach(client => client.write(`data: ${lineNumber}\n\n`));
             clients.forEach(client => client.end());
         })
         .on('error', (error) => {

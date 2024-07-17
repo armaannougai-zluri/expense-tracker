@@ -9,7 +9,7 @@ const config: Options = {
   entitiesTs: ['./src/entities'], // path to your TS entities (src), relative to `baseDir`
   dbName: 'armaan-db',
   user: 'armaan-db_owner',
-  password: '5CJYIkADSZP9',
+  password: `${process.env.PASSWORD}`,
   driver: PostgreSqlDriver,
   driverOptions :{connection: {ssl:true}},
   host: `${process.env.DATABASE_URL}`

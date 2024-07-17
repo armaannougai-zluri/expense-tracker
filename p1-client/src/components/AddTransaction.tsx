@@ -15,16 +15,21 @@ import Select from '@mui/joy/Select';
 import Option from '@mui/joy/Option';
 import userEvent from '@testing-library/user-event';
 import { CurrencyRates } from '../entities/conversion_rates';
+import { ToastContainer, toast } from 'react-toastify';
+import { CurrencyOption, currencyOptions } from '../currencyOptions'
+import { ColorPaletteProp, Typography } from '@mui/joy';
+import { isNumber } from '@mui/x-data-grid/internals';
 
 
 
 interface Props {
     open: boolean
     setOpen: React.Dispatch<React.SetStateAction<boolean>>
-    id: string
     rows: Array<transaction>
     setRows: React.Dispatch<React.SetStateAction<Array<transaction>>>
     currency_rates?: CurrencyRates
+    page: Number
+    setPage: React.Dispatch<React.SetStateAction<number>>
 }
 
 const formatNumber = (num: number): number => {
@@ -41,8 +46,8 @@ const usd: string = "USD";
 const cad: string = "CAD";
 
 
-export default function AddTransaction({ open, setOpen, id, rows, setRows, currency_rates }: Props) {
-    const [formData, setFormData] = useState<transaction>(new transaction(id, new Date(), "", 0, 0, "hi world"))
+export default function AddTransaction({ open, setOpen, rows, setRows, currency_rates, page, setPage }: Props) {
+    const [formData, setFormData] = useState<transaction>(new transaction(new Date("131"), "", 0, 0, "hi world"))
 
     function changeCurrency(val: string) {
         const newFormData = { ...formData } as transaction;
@@ -57,15 +62,35 @@ export default function AddTransaction({ open, setOpen, id, rows, setRows, curre
         }
         setFormData(newformData)
     }
-    function addTransactionProcess() {
+    async function addTransactionProcess() {
         const newformData = { ...formData } as transaction;
         newformData.original_amount_qty = formatNumber(formData.original_amount_qty);
-        fetch('http://localhost:4000/transaction', {
+        const result = await fetch('http://localhost:4000/transaction', {
             method: 'POST', headers: {
                 'Content-Type': 'application/json'
             }, body: JSON.stringify(newformData)
         })
-        setRows([...rows, newformData])
+        if (result.status == 200) {
+            toast.success("added 1 transaction");
+        }
+        await getTransactionList();
+    }
+    const getTransactionList = async function () {
+        setPage(1);
+        const data: Array<transaction> = await (await fetch('http://localhost:4000/transactions', {
+            method: 'POST', headers: {
+                'Content-Type': 'application/json'
+            }, body: JSON.stringify({ page: 1 })
+        })).json();
+        const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
+        setRows(newData);
+    }
+    const validate = function (): boolean {
+        if (formData.date >= new Date())
+            return false;
+        if (formData.original_amount_qty <= 0)
+            return false;
+        return true;
     }
 
     return (
@@ -88,29 +113,28 @@ export default function AddTransaction({ open, setOpen, id, rows, setRows, curre
 
                         onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
                             event.preventDefault();
-                            addTransactionProcess()
-                            setOpen(false);
+                            console.log(formData);
+                            if (validate()) {
+                                console.log("crazy");
+                                addTransactionProcess()
+                                setOpen(false);
+                            }
                         }}
                     >
                         <Stack spacing={2} height={"5rems"} >
 
                             <FormControl>
-                                <FormLabel>Transaction ID</FormLabel>
-                                <Input disabled value={id} style={{ width: "22rem" }} />
-                            </FormControl>
-                            <FormControl>
                                 <FormLabel>Date</FormLabel>
-                                <Input required type='date' onChange={(e) => { const newFormData = formData; if (e.target.valueAsDate != null) newFormData.date = e.target.valueAsDate; setFormData(newFormData) }} />
+                                <Input required type='date' onChange={(e) => { const newFormData = { ...formData }; if (e.target.valueAsDate != null) newFormData.date = e.target.valueAsDate; setFormData(newFormData) }} />
                             </FormControl>
 
                             <FormLabel>Original Currency</FormLabel>
                             <Stack direction={"row"} spacing={2}>
                                 <FormControl>
-                                    <Select size="md" placeholder="SELECT" required     >
-                                        <Option value="USD" onClick={(e) => changeCurrency(usd)}>USD</Option>
-                                        <Option value="INR" onClick={(e) => changeCurrency(inr)}>INR</Option>
-                                        <Option value="EUR" onClick={(e) => changeCurrency(eur)}>EUR</Option>
-                                        <Option value="CAD" onClick={(e) => changeCurrency(cad)}>CAD</Option>
+                                    <Select size="md" placeholder="SELECT" required>
+                                        {currencyOptions.map((e) =>
+                                            (<Option key={e.value} value={e.value} onClick={(data) => { changeCurrency(e.value) }}>{e.value}</Option>)
+                                        )}
                                     </Select>
                                 </FormControl>
                                 <FormControl>
@@ -122,7 +146,7 @@ export default function AddTransaction({ open, setOpen, id, rows, setRows, curre
                                         else
                                             newFormData.original_amount_qty = 0.0;
                                         convertToINR(newFormData);
-                                    }} />
+                                    }} onBlur={(e) => e.target.value = formData.original_amount_qty.toString()} />
                                 </FormControl>
 
                             </Stack>
@@ -135,14 +159,17 @@ export default function AddTransaction({ open, setOpen, id, rows, setRows, curre
                             <FormControl>
                                 <FormLabel>Enter Description</FormLabel>
 
-                                <Input type="text" style={{ height: "6rem", width: "100%" }} onChange={(e) => {
+                                <Input type="text" style={{ height: "6rem", width: "100%" }} required onChange={(e) => {
                                     const newFormData = formData;
                                     newFormData.description = e.target.value;
                                     setFormData(newFormData)
-                                    console.log(newFormData);
                                 }}></Input>
                             </FormControl>
+                            {(!isNaN(formData.date.getSeconds()) && formData.date >= new Date()) ? <Typography color={'danger' as ColorPaletteProp} level="body-lg">
+                                Date must be past
+                            </Typography> : null}
                             <Button type="submit" >Submit</Button>
+                            <></>
                         </Stack>
                     </form>
                 </ModalDialog>

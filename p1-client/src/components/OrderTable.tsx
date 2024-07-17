@@ -28,6 +28,7 @@ import MenuItem from '@mui/joy/MenuItem';
 import Dropdown from '@mui/joy/Dropdown';
 import Pagination from '@mui/material/Pagination';
 import TablePagination from '@mui/material/TablePagination';
+import { toast } from 'react-toastify'
 
 
 
@@ -81,8 +82,8 @@ function getComparator<Key extends keyof any>(
     : (a, b) => -descendingComparator(a, b, orderBy);
 }
 
-// stableSort() brings sort stability to non-modern bviewers (notably IE11). If you
-// only support modern bviewers you can replace stableSort(exampleArray, exampleComparator)
+// stableSort() brings sort stability to non-modern browsers (notably IE11). If you
+// only support modern browsers you can replace stableSort(exampleArray, exampleComparator)
 // with exampleArray.slice().sort(exampleComparator)
 function stableSort<T>(array: readonly T[], comparator: (a: T, b: T) => number) {
   const stabilizedThis = array.map((el, index) => [el, index] as [T, number]);
@@ -107,63 +108,47 @@ interface Props {
   page: number
 }
 
-export default function OrderTable(p: Props) {
-  const [order, setOrder] = React.useState<Order>('desc');
+export default function OrderTable({ rows, convert_currency, setRows, openEditTransaction, setOpenEditTransaction, currency_rates, page }: Props) {
   const [selected, setSelected] = React.useState<Array<transaction>>([]);
   const [open, setOpen] = React.useState<boolean>(false);
-  const [view, setView] = React.useState<Array<transaction>>(p.rows)
   const [clickedTransaction, setClickedTransaction] = React.useState<transaction>();
   const [hoverId, setHoverId] = React.useState<string>("");
 
-  const convert_currency: string = p.convert_currency
 
-  React.useEffect(() => { setView(p.rows) }, [p.rows])
   async function deleteTransaction(t: Array<transaction>) {
-
-    await fetch('http://localhost:4000/delete', {
+    const result = await (await fetch('http://localhost:4000/delete', {
       method: 'POST', headers: {
         'Content-Type': 'application/json'
       }, body: JSON.stringify(t)
-    })
+    })).json()
+    console.log(result);
+    if (result.status == 200) {
+      toast.error(`${result.count} transaction deleted`)
+    } else {
+      toast.error(`transaction deletion error`)
+    }
+    getTransactionList();
+  }
+  const getTransactionList = async function () {
     const data: Array<transaction> = await (await fetch('http://localhost:4000/transactions', {
       method: 'POST', headers: {
         'Content-Type': 'application/json'
-      }, body: JSON.stringify({ page: p.page })
+      }, body: JSON.stringify({ page: page })
     })).json();
-    const newdata = data.map((e) => {
-      const newTransaction = new transaction(e.id, new Date(e.date), e.original_amount_currency, e.original_amount_qty, e.converted_amount_qty, e.description);
-      return newTransaction;
-    })
-    console.log(newdata);
-    p.setRows(newdata);
-
+    const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
+    setRows(newData);
   }
 
-  const renderFilters = () => (
-    <React.Fragment>
-      <FormControl size="md">
-        <FormLabel>Date Start</FormLabel>
-        <Input type="date" />
-      </FormControl>
-      <FormControl size="md">
-        <FormLabel>Date End</FormLabel>
-        <Input type="date" />
-      </FormControl>
-      <FormControl size="md">
-        <FormLabel>Choose original currency</FormLabel>
-        <Select size="md" placeholder="ALL" >
-          <Option value="ALL">ALL</Option>
-          <Option value="EUR">EUR</Option>
-          <Option value="INR">INR</Option>
-          <Option value="USD">USD</Option>
-          <Option value="CAD">CAD</Option>
-        </Select>
-      </FormControl>
-    </React.Fragment >
-  );
+  const formatDate2 = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${day}-${month}-${year}`
+  };
+
   return (
-    (p.openEditTransaction == true) ?
-      <EditTransaction open={p.openEditTransaction} setOpen={p.setOpenEditTransaction} ts={clickedTransaction as transaction} rows={p.rows} setRows={p.setRows} currency_rates={p.currency_rates} /> :
+    (openEditTransaction == true) ?
+      <EditTransaction open={openEditTransaction} setOpen={setOpenEditTransaction} ts={clickedTransaction as transaction} rows={rows} setRows={setRows} currency_rates={currency_rates} /> :
       (<React.Fragment>
 
         <Sheet
@@ -176,12 +161,6 @@ export default function OrderTable(p: Props) {
 
           }}
         >
-          <Input
-            size="md"
-            placeholder="Search"
-            startDecorator={<SearchIcon />}
-            sx={{ flexGrow: 1 }}
-          />
           <IconButton
             size="md"
             variant="outlined"
@@ -198,7 +177,6 @@ export default function OrderTable(p: Props) {
               </Typography>
               <Divider sx={{ my: 2 }} />
               <Sheet sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {renderFilters()}
                 <Button color="primary" onClick={() => setOpen(false)}>
                   Submit
                 </Button>
@@ -219,11 +197,6 @@ export default function OrderTable(p: Props) {
             },
           }}
         >
-          <FormControl sx={{ flex: 1 }} size="md">
-            <FormLabel>Search for order</FormLabel>
-            <Input size="md" placeholder="Search" startDecorator={<SearchIcon />} />
-          </FormControl>
-          {renderFilters()}
         </Box>
         <Sheet
           className="OrderTableContainer"
@@ -256,40 +229,21 @@ export default function OrderTable(p: Props) {
                   <Checkbox
                     size="sm"
                     indeterminate={
-                      selected.length > 0 && selected.length !== view.length
+                      selected.length > 0 && selected.length !== rows.length
                     }
-                    checked={selected.length === view.length}
+                    checked={selected.length === rows.length}
                     onChange={(event) => {
                       setSelected(
-                        event.target.checked ? view.map((row) => row) : [],
+                        event.target.checked ? rows.map((row) => row) : [],
                       );
                     }}
                     color={
-                      selected.length > 0 || selected.length === view.length
+                      selected.length > 0 || selected.length === rows.length
                         ? 'primary'
                         : undefined
                     }
                     sx={{ verticalAlign: 'text-bottom' }}
                   />
-                </th>
-                <th style={{ width: '10rem', padding: '12px 6px' }}>
-                  <Link
-                    underline="none"
-                    color="primary"
-                    component="button"
-                    onClick={() => setOrder(order === 'asc' ? 'desc' : 'asc')}
-                    fontWeight="lg"
-                    endDecorator={<ArrowDropDownIcon />}
-                    sx={{
-                      '& svg': {
-                        transition: '0.2s',
-                        transform:
-                          order === 'desc' ? 'rotate(0deg)' : 'rotate(180deg)',
-                      },
-                    }}
-                  >
-                    Transaction ID
-                  </Link>
                 </th>
                 <th style={{ width: '8rem', padding: '12px 6px' }}>Date</th>
                 <th style={{ width: '8rem', padding: '12px 6px' }}>Original Amount</th>
@@ -309,7 +263,7 @@ export default function OrderTable(p: Props) {
               </tr>
             </thead>
             <tbody >
-              {view.map((row) => (
+              {rows.map((row) => (
                 <tr key={row.id} onPointerEnter={(e) => { setHoverId(row.id) }} onPointerLeave={(e) => { setHoverId("") }}>
                   <td style={{ textAlign: 'center', width: 120 }}>
                     <Checkbox
@@ -327,11 +281,8 @@ export default function OrderTable(p: Props) {
                       sx={{ verticalAlign: 'text-bottom' }}
                     />
                   </td>
-                  <td>
-                    <Typography level="body-xs" style={{ fontSize: '1rem' }}>{row.id}</Typography>
-                  </td>
                   <td >
-                    <Typography level="body-xs" style={{ fontSize: '1rem' }}>{row.date.getDate()}/{row.date.getMonth()}/{row.date.getFullYear()}</Typography>
+                    <Typography level="body-xs" style={{ fontSize: '1rem' }}>{formatDate2(row.date)}</Typography>
                   </td>
                   <td >
                     <Stack direction="row" spacing={1}>
@@ -349,8 +300,11 @@ export default function OrderTable(p: Props) {
                   </td>
                   <td>
                     <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <div>
-                        <Typography level="body-xs" style={{ fontSize: "1rem" }}>{row.description}</Typography>
+                      <div >
+                        <Typography id="1123" level="body-xs" style={{ fontSize: "1rem" }}>{
+                          (row.description.length > 50) ?
+                            `${row.description.slice(0, 50)}...` : row.description
+                        }</Typography>
                       </div>
                     </Box>
                   </td>
@@ -358,7 +312,7 @@ export default function OrderTable(p: Props) {
                     {
                       selected.length == 0 ?
                         (<Box sx={{ display: 'flex', gap: 2, justifyContent: 'right', }}>
-                          <IconButton color={'neutral' as ColorPaletteProp} onClick={() => { setClickedTransaction(row); p.setOpenEditTransaction(true); }} > <EditIcon /> </IconButton>
+                          <IconButton color={'neutral' as ColorPaletteProp} onClick={() => { setClickedTransaction(row); setOpenEditTransaction(true); }} > <EditIcon /> </IconButton>
                           <IconButton color={'danger' as ColorPaletteProp} onClick={() => deleteTransaction([row])} > <DeleteIcon /> </IconButton>
 
                         </Box>) : null

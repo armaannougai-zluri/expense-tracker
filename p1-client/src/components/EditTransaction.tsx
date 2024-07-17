@@ -15,6 +15,9 @@ import Select from '@mui/joy/Select';
 import Option from '@mui/joy/Option';
 import userEvent from '@testing-library/user-event';
 import { CurrencyRates } from '../entities/conversion_rates';
+import { CurrencyOption, currencyOptions } from '../currencyOptions';
+import { ColorPaletteProp, Typography } from '@mui/joy';
+import {toast} from 'react-toastify'
 
 
 
@@ -66,14 +69,6 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
         newFormData.original_amount_currency = val
         convertToINR(newFormData)
     }
-    const formatDate = (date: Date): string => {
-        console.log(date);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
-        const day = String(date.getDate()).padStart(2, '0');
-        console.log(`${day}-${month}-${year}`);
-        return `${day}-${month}-${year}`;
-    };
     function convertToINR(formData: transaction) {
         const newformData = { ...formData } as transaction;
         if (currency_rates != null) {
@@ -82,20 +77,32 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
         }
         setFormData(newformData)
     }
-    function editTransactionProcess() {
+    const formatDate = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`
+    };
+    async function editTransactionProcess() {
         const newformData = { ...formData } as transaction;
         newformData.original_amount_qty = formatNumber(formData.original_amount_qty);
-        fetch('http://localhost:4000/transaction', {
+        const result = await fetch('http://localhost:4000/transaction', {
             method: 'POST', headers: {
                 'Content-Type': 'application/json'
             }, body: JSON.stringify(newformData)
-        })
-        setRows(rows.map((e) => {
-            if (e.id != formData.id)
-                return e;
-            else
-                return formData;
-        }));
+        });
+        if (result.status == 200){
+            toast.success("edited 1 transaction");
+        }else{
+            toast.error("editing transaction failed");
+        }
+    }
+    const validate = function (): boolean {
+        if (formData.date >= new Date())
+            return false;
+        if (formData.original_amount_qty <= 0)
+            return false;
+        return true;
     }
 
     return (
@@ -118,37 +125,40 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
 
                         onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
                             event.preventDefault();
-                            editTransactionProcess()
-                            setOpen(false);
+                            console.log(formData);
+                            if (validate()) {
+                                console.log("validated sob")
+                                editTransactionProcess()
+                                setOpen(false);
+                            }
                         }}
                     >
                         <Stack spacing={2} height={"5rems"} >
 
                             <FormControl>
-                                <FormLabel>Transaction ID</FormLabel>
-                                <Input disabled value={formData.id} style={{ width: "22rem" }} />
-                            </FormControl>
-                            <FormControl>
                                 <FormLabel>Date</FormLabel>
-                                <Input required type='date' placeholder={datePlaceholder} onChange={(e) => { const newFormData = { ...formData }; if (e.target.valueAsDate != null) newFormData.date = e.target.valueAsDate; setFormData(newFormData) }} />
+                                <Input required type='date' name='date' value={formatDate(formData.date)} onChange={(e) => {
+                                    const newFormData = { ...formData };
+                                    if (e.target.valueAsDate != null)
+                                        newFormData.date = e.target.valueAsDate;
+                                    setFormData(newFormData)
+                                }} />
                             </FormControl>
 
                             <FormLabel>Original Currency</FormLabel>
                             <Stack direction={"row"} spacing={2}>
                                 <FormControl>
                                     <Select size="md" value={formData.original_amount_currency} required     >
-                                        <Option value="USD" onClick={(e) => changeCurrency(usd)}>USD</Option>
-                                        <Option value="INR" onClick={(e) => changeCurrency(inr)}>INR</Option>
-                                        <Option value="EUR" onClick={(e) => changeCurrency(eur)}>EUR</Option>
-                                        <Option value="CAD" onClick={(e) => changeCurrency(cad)}>CAD</Option>
+                                        {currencyOptions.map((e) =>
+                                            (<Option key={e.value} value={e.value} onClick={(data) => { changeCurrency(e.value) }}>{e.value}</Option>)
+                                        )}
                                     </Select>
                                 </FormControl>
                                 <FormControl>
-                                    <Input required type='text' style={{ width: "6rem" }} value={formData.original_amount_qty} onChange={(e) => {
+                                    <Input required type='text' style={{ width: "6rem" }} placeholder={formData.original_amount_qty.toString()} onChange={(e) => {
                                         const newFormData = { ...formData } as transaction;
-                                        if (!isNaN(parseFloat(e.target.value))) {
+                                        if (!isNaN(parseFloat(e.target.value)))
                                             newFormData.original_amount_qty = parseFloat(e.target.value);
-                                        }
                                         else
                                             newFormData.original_amount_qty = 0.0;
                                         convertToINR(newFormData);
@@ -165,13 +175,15 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
                             <FormControl>
                                 <FormLabel>Enter Description</FormLabel>
 
-                                <Input type="text" style={{ height: "6rem", width: "100%" }} value={formData.description} onChange={(e) => {
+                                <Input type="text" style={{ height: "6rem", width: "100%" }} required value={formData.description} onChange={(e) => {
                                     const newFormData = { ...formData };
                                     newFormData.description = e.target.value;
                                     setFormData(newFormData)
-                                    console.log(newFormData);
                                 }}></Input>
                             </FormControl>
+                            {(!isNaN(formData.date.getSeconds()) && formData.date >= new Date()) ? <Typography color={'danger' as ColorPaletteProp} level="body-lg">
+                                Date must be past
+                            </Typography> : null}
                             <Button type="submit" >Submit</Button>
                         </Stack>
                     </form>
