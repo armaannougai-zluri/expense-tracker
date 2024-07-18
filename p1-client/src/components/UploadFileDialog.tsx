@@ -5,7 +5,7 @@ import Modal from '@mui/joy/Modal';
 import ModalDialog from '@mui/joy/ModalDialog';
 import Stack from '@mui/joy/Stack';
 import Add from '@mui/icons-material/Add';
-import { UploadFile } from '@mui/icons-material';
+import { TurnedIn, UploadFile } from '@mui/icons-material';
 import Input from '@mui/joy/Input';
 import { transaction } from '../entities/transaction';
 import Typography from '@mui/joy/Typography';
@@ -56,32 +56,28 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
         const rows = text.split("\n").slice(1); // Assuming the first row is the header
 
         for (const row of rows) {
-            const [dateStr, description, amountStr, currency] = row.split(",");
+            let [dateStr, description, amountStr, currency] = row.split(",");
             if (dateStr.length == 0)
                 break;
+            
+            dateStr = dateStr.split('-').reverse().join('-');
             const date = new Date(dateStr);
-            if (date > new Date()) {
+            if (date >= new Date()) {
                 setState(1);
-                toast.error(`Validation Error: Date is in the future, line=${cnt}`);
+                toast.error(`Validation Error: Date must be in past, line=${cnt}`);
                 return false;
             }
-
-            // Check if amount is greater than 0
             const amount = parseFloat(amountStr);
             if (amount <= 0) {
                 setState(1);
                 toast.error(`Validation Error: Amount should be greater than 0, line=${cnt}`);
                 return false;
             }
-
-            // Check if description is not empty
             if (!description) {
                 setState(1);
                 toast.error(`Validation Error: Description is empty, entry no. ${cnt}`)
                 return false;
             }
-
-            // Trim the currency code and check if it is in the currency list
             if (!currencyList.includes(currency.trim())) {
                 setState(1);
                 toast.error(`Validation Error: Invalid currency - ${currency.trim()} , entry no. ${cnt}`)
