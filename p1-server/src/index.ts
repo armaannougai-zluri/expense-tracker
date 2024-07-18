@@ -11,6 +11,7 @@ import { Readable } from 'stream';
 import https from 'https'
 import { v4 as uuid } from 'uuid'
 import dotenv from 'dotenv'
+import { CurrencyOption, currencyOptions } from './currencyOptions';
 
 dotenv.config();
 
@@ -22,7 +23,6 @@ const port: number | undefined =
         :
         undefined;
 
-const clients: any[] = [];
 
 
 let orm: MikroORM;
@@ -39,6 +39,28 @@ const formatNumber = (num: number): number => {
         return parseFloat(num.toFixed(3));
     }
 };
+function validate(t: transactions): boolean {
+    const date = t.date;
+    if (date > new Date())
+        return false;
+
+    const amount = t.original_amount_qty;
+    if (amount <= 0)
+        return false;
+
+
+    // Check if description is not empty
+    const description = t.description;
+    if (!description)
+        return false;
+
+    const currency = t.original_amount_currency;
+    const currencyList = currencyOptions.map((e: CurrencyOption) => e.value);
+    // Trim the currency code and check if it is in the currency list
+    if (!currencyList.includes(currency))
+        return false;
+    return true;
+}
 
 function convertDateFormat(dateString: string): string {
     const [day, month, year] = dateString.split('-');
@@ -50,19 +72,30 @@ app.post("/transaction", async (req, res) => {
     const em = orm.em.fork();
     if (req.body.id == undefined) {
         const t1 = new transactions(new Date(req.body.date), req.body.original_amount_currency, req.body.original_amount_qty, req.body.converted_amount_qty, req.body.description);
-        await em.persistAndFlush(t1);
-        res.sendStatus(200);
+        const result = await validate(t1);
+        if (result) {
+            await em.persistAndFlush(t1);
+            res.sendStatus(200);
+        } else {
+            res.sendStatus(500);
+        }
     } else {
         const t1 = await em.findOne(transactions, { id: req.body.id });
-        if (t1){
-            t1.date = req.body.date;
-            t1.original_amount_currency = req.body.original_amount_currency;
-            t1.original_amount_qty = req.body.original_amount_qty;
-            t1.converted_amount_qty = req.body.converted_amount_qty;
-            t1.description = req.body.description;
-            await em.persistAndFlush(t1);
-        }
-        res.sendStatus(200);
+        if (t1) {
+            const result = await validate(t1);
+            if (result) {
+                t1.date = req.body.date;
+                t1.original_amount_currency = req.body.original_amount_currency;
+                t1.original_amount_qty = req.body.original_amount_qty;
+                t1.converted_amount_qty = req.body.converted_amount_qty;
+                t1.description = req.body.description;
+                await em.persistAndFlush(t1);
+                res.sendStatus(200);
+            } else {
+                res.sendStatus(500);
+            }
+        } else
+            res.sendStatus(500);
     }
 });
 
@@ -96,7 +129,7 @@ app.post("/delete", async (req: Request, res: Response) => {
         else
             res.send(JSON.stringify({ status: 500 }));
 
-    }).catch(() => {
+    }).catch((err) => {
         res.send(JSON.stringify({ status: 500 }));
     });
 });
@@ -106,7 +139,6 @@ app.get("/rates", async (req, res) => {
     res.send(JSON.stringify(CONV_RATES));
 });
 
-// File upload endpoint
 app.post("/file", upload.single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded');
@@ -114,49 +146,65 @@ app.post("/file", upload.single('file'), async (req, res) => {
 
     const results: Array<transactions> = [];
     const stream = Readable.from(req.file.buffer.toString());
-
     const em = orm.em.fork();
-
-    let lineNumber: number = 0;
+    let lineNumber = 0;
+    let hasErrorOccurred = false;
 
     stream.pipe(csv())
         .on('data', async (data) => {
-            const newArray = (Object.keys(data).map((e) => data[e]))
-            if (isNaN(new Date(newArray[0]).getTime()))
-                newArray[0] = convertDateFormat(newArray[0]);
+            if (hasErrorOccurred) return;
 
-            const ts = new transactions(
-                new Date(newArray[0]), newArray[3], parseFloat(newArray[2]), formatNumber(parseFloat(newArray[2]) / CONV_RATES[newArray[3]]), newArray[1]
-            )
-            lineNumber++;
-            await em.persistAndFlush(ts);
-            clients.forEach(client => client.write(`data: ${lineNumber}\n\n`))
-        })
-        .on('end', () => {
-            res.status(200).json({ message: 'File processed successfully', data: results });
-            clients.forEach(client => client.write(`data: ${lineNumber}\n\n`));
-            clients.forEach(client => client.end());
+            try {
+                const newArray = (Object.keys(data).map((e) => data[e]));
+                if (isNaN(new Date(newArray[0]).getTime())) {
+                    newArray[0] = convertDateFormat(newArray[0]);
+                }
+
+                const ts = new transactions(
+                    new Date(newArray[0]),
+                    newArray[3],
+                    parseFloat(newArray[2]),
+                    formatNumber(parseFloat(newArray[2]) / CONV_RATES[newArray[3]]),
+                    newArray[1]
+                );
+                results.push(ts);
+            } catch (err) {
+                hasErrorOccurred = true;
+                res.sendStatus(500).send(JSON.stringify({message:"file processing failed\n"}));
+            }
+        }
+        )
+        .on('end', async () => {
+            if (hasErrorOccurred)
+                return
+            try {
+                await em.transactional(async (em) => {
+                    for (const ts of results) {
+                        const isValid = validate(ts);
+                        lineNumber++;
+                        if (!isValid) {
+                            res.status(500).send(JSON.stringify({ message: `Validation failed at line: ${lineNumber}` }));
+
+                            throw new Error();
+                        }
+                        em.persist(ts);
+                    }
+                });
+
+                res.status(200).send(JSON.stringify({ message: `Transaction inserted ${lineNumber} entries` }));
+            } catch (err) {
+            }
         })
         .on('error', (error) => {
-            console.error(error);
-            res.status(500).send('Error processing file');
+            if (!hasErrorOccurred) {
+                hasErrorOccurred = true;
+                res.sendStatus(500).send(JSON.stringify({ message: "file processing failed\n" }));
+            }
         });
 });
 
-// SSE endpoint
-app.get('/events', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders();
 
-    clients.push(res);
 
-    req.on('close', () => {
-        clients.splice(clients.indexOf(res), 1);
-        res.end();
-    });
-});
 
 app.listen(port, async () => {
     orm = await MikroORM.init(config);

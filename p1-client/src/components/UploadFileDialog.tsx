@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import Button from '@mui/joy/Button';
 import Modal from '@mui/joy/Modal';
 import ModalDialog from '@mui/joy/ModalDialog';
-import DialogTitle from '@mui/joy/DialogTitle';
 import Stack from '@mui/joy/Stack';
 import Add from '@mui/icons-material/Add';
 import { UploadFile } from '@mui/icons-material';
@@ -11,12 +10,10 @@ import Input from '@mui/joy/Input';
 import { transaction } from '../entities/transaction';
 import Typography from '@mui/joy/Typography';
 import CancelIcon from '@mui/icons-material/Cancel';
-import { validate } from 'uuid';
 import { currencyOptions } from '../currencyOptions';
 import IconButton from '@mui/joy/IconButton';
 import { ColorPaletteProp } from '@mui/joy';
-import { alignProperty } from '@mui/material/styles/cssUtils';
-import { toast , ToastContainer } from 'react-toastify';
+import { toast, ToastContainer } from 'react-toastify';
 
 
 
@@ -44,31 +41,7 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
         const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
         setRows(newData);
     }
-    useEffect(() => {
-        const eventSource = new EventSource('http://localhost:4000/events');
 
-        eventSource.onmessage = (event) => {
-            if (event.data !='failed') {
-                setState(3);
-                setMessage('Upload Complete');
-                getTransactionList();
-                console.log(event.data , "transactions added");
-                toast.success(`added ${event.data} transaction(s)`)
-                eventSource.close();
-            } else {
-                setProgress(event.data);
-            }
-        };
-
-        eventSource.onerror = (err) => {
-            console.error('EventSource failed:', err);
-            eventSource.close();
-        };
-
-        return () => {
-            eventSource.close();
-        };
-    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -77,7 +50,6 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
     };
 
     const validateFile = async (file: File): Promise<boolean> => {
-        console.log("validating\n");
         let cnt = 0;
         const currencyList = (currencyOptions.map((e) => e.value));
         const text = await file.text();
@@ -134,18 +106,23 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
 
             const data = await validateFile(file);
             if (data) {
-                console.log("going for it\n");
                 try {
                     const response = await fetch('http://localhost:4000/file', {
                         method: 'POST',
                         body: formData,
                     });
-
-                    if (!response.ok) {
-                        throw new Error('File upload failed');
+                    const data = await response.json();
+                    if (response.status != 200) {
+                        setState(1);
+                        toast.error(data.message);
+                    } else {
+                        setState(3);
+                        setMessage('Upload Complete');
+                        getTransactionList();
+                        toast.success(data.message);
                     }
                 } catch (error) {
-                    console.error('Error uploading file:', error);
+                    toast.error('error uploading file');
                 }
             } else {
                 console.log(`${message}`);
@@ -179,9 +156,7 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
                         onKeyPress={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
                         onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
                             event.preventDefault();
-
                             handleUpload();
-                            // setOpen(false);
                         }}
                     >
                         <Stack spacing={2} >
@@ -196,7 +171,7 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
                                     >
                                         <Input style={{ display: "none" }} type='file' onChange={handleFileChange} />
                                         Choose file
-                                    </Button> :  null
+                                    </Button> : null
                             }
                             {(state == 0) ?
                                 <Button type="submit" disabled={file == null || state > 2}>
@@ -209,7 +184,7 @@ const UploadFileDialog: React.FC<Props> = ({ open, setOpen, setRows, setPage }) 
                     </form>
                 </ModalDialog>
             </Modal>
-            <ToastContainer position='bottom-right'/>
+            <ToastContainer position='bottom-right' />
         </React.Fragment >
     );
 };
