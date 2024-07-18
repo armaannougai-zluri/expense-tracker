@@ -19,6 +19,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import { CurrencyOption, currencyOptions } from '../currencyOptions'
 import { ColorPaletteProp, Typography } from '@mui/joy';
 import { isNumber } from '@mui/x-data-grid/internals';
+import { Toast } from 'react-toastify/dist/components';
 
 
 
@@ -118,6 +119,8 @@ export default function AddTransaction({ open, setOpen, rows, setRows, currency_
                                 console.log("crazy");
                                 addTransactionProcess()
                                 setOpen(false);
+                            } else {
+                                toast.error("validation failed");
                             }
                         }}
                     >
@@ -174,6 +177,7 @@ export default function AddTransaction({ open, setOpen, rows, setRows, currency_
                     </form>
                 </ModalDialog>
             </Modal>
+            <ToastContainer position='bottom-right' limit={4} />
         </React.Fragment>
     );
 }

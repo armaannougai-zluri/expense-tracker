@@ -1,7 +1,7 @@
 import { Entity, PrimaryKey, Property, Formula } from '@mikro-orm/core';
 
 @Entity()
-export class transactions {
+export class Transactions {
     @PrimaryKey()
     id!: number
     @Property()

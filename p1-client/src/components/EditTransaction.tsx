@@ -17,7 +17,7 @@ import userEvent from '@testing-library/user-event';
 import { CurrencyRates } from '../entities/conversion_rates';
 import { CurrencyOption, currencyOptions } from '../currencyOptions';
 import { ColorPaletteProp, Typography } from '@mui/joy';
-import {toast} from 'react-toastify'
+import { toast } from 'react-toastify'
 
 
 
@@ -29,6 +29,7 @@ interface Props {
     rows: Array<transaction>
     setRows: React.Dispatch<React.SetStateAction<Array<transaction>>>
     currency_rates?: CurrencyRates
+    page:number
 }
 
 const formatNumber = (num: number): number => {
@@ -49,7 +50,7 @@ const cad: string = "CAD";
 
 
 
-export default function EditTransaction({ open, setOpen, ts, rows, setRows, currency_rates }: Props) {
+export default function EditTransaction({ open, setOpen, ts, rows, setRows, currency_rates , page }: Props) {
     const [formData, setFormData] = useState<transaction>(ts as transaction)
     const [datePlaceholder, setDatePlaceholder] = useState<string>();
 
@@ -83,6 +84,15 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`
     };
+    const getTransactionList = async function () {
+        const data: Array<transaction> = await (await fetch('http://localhost:4000/transactions', {
+            method: 'POST', headers: {
+                'Content-Type': 'application/json'
+            }, body: JSON.stringify({ page: page})
+        })).json();
+        const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
+        setRows(newData);
+    }
     async function editTransactionProcess() {
         const newformData = { ...formData } as transaction;
         newformData.original_amount_qty = formatNumber(formData.original_amount_qty);
@@ -91,17 +101,21 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
                 'Content-Type': 'application/json'
             }, body: JSON.stringify(newformData)
         });
-        if (result.status == 200){
+        if (result.status == 200) {
             toast.success("edited 1 transaction");
-        }else{
+        } else {
             toast.error("editing transaction failed");
         }
+        getTransactionList();
     }
     const validate = function (): boolean {
         if (formData.date >= new Date())
             return false;
         if (formData.original_amount_qty <= 0)
             return false;
+        
+
+        
         return true;
     }
 
@@ -125,11 +139,12 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
 
                         onSubmit={(event: React.FormEvent<HTMLFormElement>) => {
                             event.preventDefault();
-                            console.log(formData);
                             if (validate()) {
                                 console.log("validated sob")
                                 editTransactionProcess()
                                 setOpen(false);
+                            }else{
+                                toast.error("validation failed");
                             }
                         }}
                     >

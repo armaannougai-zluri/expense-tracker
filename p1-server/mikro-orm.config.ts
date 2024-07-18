@@ -5,7 +5,7 @@ import dotenv from 'dotenv'
 dotenv.config();
 
 const config: Options = {
-  entities: ['./dist/entities'], // path to your JS entities (dist), relative to `baseDir`
+  entities: ['./dist/entities'],
   entitiesTs: ['./src/entities'], // path to your TS entities (src), relative to `baseDir`
   dbName: 'armaan-db',
   user: 'armaan-db_owner',

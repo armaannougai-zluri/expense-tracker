@@ -148,7 +148,7 @@ export default function OrderTable({ rows, convert_currency, setRows, openEditTr
 
   return (
     (openEditTransaction == true) ?
-      <EditTransaction open={openEditTransaction} setOpen={setOpenEditTransaction} ts={clickedTransaction as transaction} rows={rows} setRows={setRows} currency_rates={currency_rates} /> :
+      <EditTransaction open={openEditTransaction} setOpen={setOpenEditTransaction} ts={clickedTransaction as transaction} rows={rows} setRows={setRows} currency_rates={currency_rates}  page={page}/> :
       (<React.Fragment>
 
         <Sheet
