@@ -29,7 +29,11 @@ import Dropdown from '@mui/joy/Dropdown';
 import Pagination from '@mui/material/Pagination';
 import TablePagination from '@mui/material/TablePagination';
 import { toast } from 'react-toastify'
-
+import DialogTitle from '@mui/joy/DialogTitle';
+import DialogContent from '@mui/joy/DialogContent';
+import DialogActions from '@mui/joy/DialogActions';
+import DeleteForever from '@mui/icons-material/DeleteForever';
+import WarningRoundedIcon from '@mui/icons-material/WarningRounded';
 
 
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
@@ -53,10 +57,61 @@ import { Tooltip } from '@mui/material';
 import { Edit, Padding } from '@mui/icons-material';
 import EditTransaction from './EditTransaction';
 import { CurrencyRates } from '../entities/conversion_rates';
+import { useContext } from 'react';
+import { AppContext, AppContextType } from '../App';
 const inr: string = "INR"
 const usd: string = "USD"
 const cad: string = "CAD"
 
+
+interface Props2 {
+  open: boolean,
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  rowsToDelete: Array<transaction>
+  setSelected: React.Dispatch<React.SetStateAction<Array<transaction>>>
+}
+
+
+function ResponsiveModal({ open, setOpen, rowsToDelete, setSelected }: Props2) {
+  const context: AppContextType = useContext(AppContext) as AppContextType;
+  const { deleteTransaction, getTransactionList, rows, page } = context;
+  return (
+    <React.Fragment>
+      <Button
+        variant="outlined"
+        color="danger"
+        endDecorator={<DeleteForever />}
+        onClick={() => setOpen(true)}
+      >
+        Discard
+      </Button>
+      <Modal open={open} onClose={() => { setSelected([]); setOpen(false) }}>
+        <ModalDialog variant="outlined" role="alertdialog">
+          <DialogTitle>
+            <WarningRoundedIcon />
+            Confirmation
+          </DialogTitle>
+          <Divider />
+          <DialogContent>
+            This action cannot be undone. This will permanently delete selected transaction(s)
+          </DialogContent>
+          <DialogActions>
+            <Button variant="solid" color="danger" onClick={async () => {
+              await deleteTransaction(rowsToDelete);
+              setSelected([]);
+              setOpen(false)
+            }}>
+              Confirm
+            </Button>
+            <Button variant="plain" color="neutral" onClick={() => { setSelected([]); setOpen(false) }}>
+              Cancel
+            </Button>
+          </DialogActions>
+        </ModalDialog>
+      </Modal>
+    </React.Fragment>
+  );
+}
 
 function descendingComparator<T>(a: T, b: T, orderBy: keyof T) {
   if (b[orderBy] < a[orderBy]) {
@@ -113,7 +168,8 @@ export default function OrderTable({ rows, convert_currency, setRows, openEditTr
   const [open, setOpen] = React.useState<boolean>(false);
   const [clickedTransaction, setClickedTransaction] = React.useState<transaction>();
   const [hoverId, setHoverId] = React.useState<string>("");
-
+  const [openCD, setOpenCD] = React.useState<boolean>(false);
+  const [confirm, setConfirm] = React.useState<boolean>(false);
 
   async function deleteTransaction(t: Array<transaction>) {
     const result = await (await fetch('http://localhost:4000/delete', {
@@ -147,184 +203,186 @@ export default function OrderTable({ rows, convert_currency, setRows, openEditTr
   };
 
   return (
-    (openEditTransaction == true) ?
-      <EditTransaction open={openEditTransaction} setOpen={setOpenEditTransaction} ts={clickedTransaction as transaction} rows={rows} setRows={setRows} currency_rates={currency_rates}  page={page}/> :
-      (<React.Fragment>
+    (openCD == true) ?
+      <ResponsiveModal open={openCD} setOpen={setOpenCD} rowsToDelete={selected} setSelected={setSelected} /> :
+      (openEditTransaction == true) ?
+        <EditTransaction open={openEditTransaction} setOpen={setOpenEditTransaction} ts={clickedTransaction as transaction} rows={rows} setRows={setRows} currency_rates={currency_rates} page={page} /> :
+        (<React.Fragment>
 
-        <Sheet
-          className="SearchAndFilters-mobile"
-          sx={{
-            display: { xs: 'flex', sm: 'none' },
-            my: 1,
-            gap: 1,
-            overflow: 'hidden'
-
-          }}
-        >
-          <IconButton
-            size="md"
-            variant="outlined"
-            color="neutral"
-            onClick={() => setOpen(true)}
-          >
-            <FilterAltIcon />
-          </IconButton>
-          <Modal open={open} onClose={() => setOpen(false)}>
-            <ModalDialog aria-labelledby="filter-modal" layout="fullscreen">
-              <ModalClose />
-              <Typography id="filter-modal" level="h2">
-                Filters
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Sheet sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Button color="primary" onClick={() => setOpen(false)}>
-                  Submit
-                </Button>
-              </Sheet>
-            </ModalDialog>
-          </Modal>
-        </Sheet>
-        <Box
-          className="SearchAndFilters-tabletUp"
-          sx={{
-            borderRadius: 'sm',
-            py: 2,
-            display: { xs: 'none', sm: 'flex' },
-            flexWrap: 'wrap',
-            gap: 1.5,
-            '& > *': {
-              minWidth: { xs: '120px', md: '160px' },
-            },
-          }}
-        >
-        </Box>
-        <Sheet
-          className="OrderTableContainer"
-          variant="outlined"
-          sx={{
-            display: { xs: 'none', sm: 'initial' },
-            width: '100%',
-            borderRadius: 'sm',
-            flexShrink: 1,
-            overflowY: 'auto',
-            minHeight: 0,
-          }}
-        >
-          <Table
-            aria-labelledby="tableTitle"
-            stickyHeader
-            hoverRow
+          <Sheet
+            className="SearchAndFilters-mobile"
             sx={{
-              '--TableCell-headBackground': 'var(--joy-palette-background-level1)',
-              '--Table-headerUnderlineThickness': '5px',
-              '--TableRow-hoverBackground': 'var(--joy-palette-background-level2)',
-              '--TableCell-paddingY': '4px',
-              '--TableCell-paddingX': '8px',
+              display: { xs: 'flex', sm: 'none' },
+              my: 1,
+              gap: 1,
+              overflow: 'hidden'
+
             }}
-            style={{ fontSize: '1rem' }}
           >
-            <thead>
-              <tr>
-                <th style={{ width: 50, textAlign: 'center', padding: '12px 6px' }}>
-                  <Checkbox
-                    size="sm"
-                    indeterminate={
-                      selected.length > 0 && selected.length !== rows.length
-                    }
-                    checked={selected.length === rows.length}
-                    onChange={(event) => {
-                      setSelected(
-                        event.target.checked ? rows.map((row) => row) : [],
-                      );
-                    }}
-                    color={
-                      selected.length > 0 || selected.length === rows.length
-                        ? 'primary'
-                        : undefined
-                    }
-                    sx={{ verticalAlign: 'text-bottom' }}
-                  />
-                </th>
-                <th style={{ width: '8rem', padding: '12px 6px' }}>Date</th>
-                <th style={{ width: '8rem', padding: '12px 6px' }}>Original Amount</th>
-                <th style={{ width: '8rem', padding: '12px 6px' }}>Converted Amount</th>
-                <th style={{ width: '10rem', padding: '12px 6px' }}>Description </th>
-                <th style={{ width: '4rem', padding: '12px 6px' }}>
-                  {
-                    selected.length >
-                      0 ?
-                      (<Box sx={{ display: 'flex', gap: 2, justifyContent: 'right', }}>
-                        <IconButton color={'danger' as ColorPaletteProp} onClick={() => { deleteTransaction(selected); setSelected([]) }} > <DeleteIcon /> </IconButton>
-
-                      </Box>) : null
-                  }
-                </th>
-
-              </tr>
-            </thead>
-            <tbody >
-              {rows.map((row) => (
-                <tr key={row.id} onPointerEnter={(e) => { setHoverId(row.id) }} onPointerLeave={(e) => { setHoverId("") }}>
-                  <td style={{ textAlign: 'center', width: 120 }}>
+            <IconButton
+              size="md"
+              variant="outlined"
+              color="neutral"
+              onClick={() => setOpen(true)}
+            >
+              <FilterAltIcon />
+            </IconButton>
+            <Modal open={open} onClose={() => setOpen(false)}>
+              <ModalDialog aria-labelledby="filter-modal" layout="fullscreen">
+                <ModalClose />
+                <Typography id="filter-modal" level="h2">
+                  Filters
+                </Typography>
+                <Divider sx={{ my: 2 }} />
+                <Sheet sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button color="primary" onClick={() => setOpen(false)}>
+                    Submit
+                  </Button>
+                </Sheet>
+              </ModalDialog>
+            </Modal>
+          </Sheet>
+          <Box
+            className="SearchAndFilters-tabletUp"
+            sx={{
+              borderRadius: 'sm',
+              py: 2,
+              display: { xs: 'none', sm: 'flex' },
+              flexWrap: 'wrap',
+              gap: 1.5,
+              '& > *': {
+                minWidth: { xs: '120px', md: '160px' },
+              },
+            }}
+          >
+          </Box>
+          <Sheet
+            className="OrderTableContainer"
+            variant="outlined"
+            sx={{
+              display: { xs: 'none', sm: 'initial' },
+              width: '100%',
+              borderRadius: 'sm',
+              flexShrink: 1,
+              overflowY: 'auto',
+              minHeight: 0,
+            }}
+          >
+            <Table
+              aria-labelledby="tableTitle"
+              stickyHeader
+              hoverRow
+              sx={{
+                '--TableCell-headBackground': 'var(--joy-palette-background-level1)',
+                '--Table-headerUnderlineThickness': '5px',
+                '--TableRow-hoverBackground': 'var(--joy-palette-background-level2)',
+                '--TableCell-paddingY': '4px',
+                '--TableCell-paddingX': '8px',
+              }}
+              style={{ fontSize: '1rem' }}
+            >
+              <thead>
+                <tr>
+                  <th style={{ width: 50, textAlign: 'center', padding: '12px 6px' }}>
                     <Checkbox
                       size="sm"
-                      checked={selected.includes(row)}
-                      color={selected.includes(row) ? 'primary' : undefined}
+                      indeterminate={
+                        selected.length > 0 && selected.length !== rows.length
+                      }
+                      checked={selected.length === rows.length}
                       onChange={(event) => {
-                        setSelected((ids) =>
-                          event.target.checked
-                            ? ids.concat(row)
-                            : ids.filter((itemId) => itemId.id !== row.id),
+                        setSelected(
+                          event.target.checked ? rows.map((row) => row) : [],
                         );
                       }}
-                      slotProps={{ checkbox: { sx: { textAlign: 'left' } } }}
+                      color={
+                        selected.length > 0 || selected.length === rows.length
+                          ? 'primary'
+                          : undefined
+                      }
                       sx={{ verticalAlign: 'text-bottom' }}
                     />
-                  </td>
-                  <td >
-                    <Typography level="body-xs" style={{ fontSize: '1rem' }}>{formatDate2(row.date)}</Typography>
-                  </td>
-                  <td >
-                    <Stack direction="row" spacing={1}>
-
-                      <Chip variant={"solid"} color={(hoverId == row.id) ? "success" : "neutral"}> {row.original_amount_currency} </Chip>
-                      <Typography level="body-lg" style={{ fontSize: '1rem' }}>{row.original_amount_qty}</Typography>
-                    </Stack>
-                  </td>
-                  <td>
-                    <Stack direction="row" spacing={1}>
-
-                      <Chip variant="solid" color={(hoverId == row.id) ? "success" : "neutral"}  > {convert_currency}  </Chip>
-                      <Typography level="body-lg" style={{ fontSize: '1rem' }}>{row.converted_amount_qty}</Typography>
-                    </Stack>
-                  </td>
-                  <td>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <div >
-                        <Typography id="1123" level="body-xs" style={{ fontSize: "1rem" }}>{
-                          (row.description.length > 50) ?
-                            `${row.description.slice(0, 50)}...` : row.description
-                        }</Typography>
-                      </div>
-                    </Box>
-                  </td>
-                  <td>
+                  </th>
+                  <th style={{ width: '8rem', padding: '12px 6px' }}>Date</th>
+                  <th style={{ width: '8rem', padding: '12px 6px' }}>Original Amount</th>
+                  <th style={{ width: '8rem', padding: '12px 6px' }}>Converted Amount</th>
+                  <th style={{ width: '10rem', padding: '12px 6px' }}>Description </th>
+                  <th style={{ width: '4rem', padding: '12px 6px' }}>
                     {
-                      selected.length == 0 ?
+                      selected.length >
+                        0 ?
                         (<Box sx={{ display: 'flex', gap: 2, justifyContent: 'right', }}>
-                          <IconButton color={'neutral' as ColorPaletteProp} onClick={() => { setClickedTransaction(row); setOpenEditTransaction(true); }} > <EditIcon /> </IconButton>
-                          <IconButton color={'danger' as ColorPaletteProp} onClick={() => deleteTransaction([row])} > <DeleteIcon /> </IconButton>
+                          <IconButton color={'danger' as ColorPaletteProp} onClick={() => { setOpenCD(true); }} > <DeleteIcon /> </IconButton>
 
                         </Box>) : null
                     }
-                  </td>
+                  </th>
+
                 </tr>
-              ))}
-            </tbody>
-          </Table>
-        </Sheet>
+              </thead>
+              <tbody >
+                {rows.map((row) => (
+                  <tr key={row.id} onPointerEnter={(e) => { setHoverId(row.id) }} onPointerLeave={(e) => { setHoverId("") }}>
+                    <td style={{ textAlign: 'center', width: 120 }}>
+                      <Checkbox
+                        size="sm"
+                        checked={selected.includes(row)}
+                        color={selected.includes(row) ? 'primary' : undefined}
+                        onChange={(event) => {
+                          setSelected((ids) =>
+                            event.target.checked
+                              ? ids.concat(row)
+                              : ids.filter((itemId) => itemId.id !== row.id),
+                          );
+                        }}
+                        slotProps={{ checkbox: { sx: { textAlign: 'left' } } }}
+                        sx={{ verticalAlign: 'text-bottom' }}
+                      />
+                    </td>
+                    <td >
+                      <Typography level="body-xs" style={{ fontSize: '1rem' }}>{formatDate2(row.date)}</Typography>
+                    </td>
+                    <td >
+                      <Stack direction="row" spacing={1}>
+
+                        <Chip variant={"solid"} color={(hoverId == row.id) ? "success" : "neutral"}> {row.original_amount_currency} </Chip>
+                        <Typography level="body-lg" style={{ fontSize: '1rem' }}>{row.original_amount_qty}</Typography>
+                      </Stack>
+                    </td>
+                    <td>
+                      <Stack direction="row" spacing={1}>
+
+                        <Chip variant="solid" color={(hoverId == row.id) ? "success" : "neutral"}  > {convert_currency}  </Chip>
+                        <Typography level="body-lg" style={{ fontSize: '1rem' }}>{row.converted_amount_qty}</Typography>
+                      </Stack>
+                    </td>
+                    <td>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <div >
+                          <Typography id="1123" level="body-xs" style={{ fontSize: "1rem" }}>{
+                            (row.description.length > 50) ?
+                              `${row.description.slice(0, 50)}...` : row.description
+                          }</Typography>
+                        </div>
+                      </Box>
+                    </td>
+                    <td>
+                      {
+                        selected.length == 0 ?
+                          (<Box sx={{ display: 'flex', gap: 2, justifyContent: 'right', }}>
+                            <IconButton color={'neutral' as ColorPaletteProp} onClick={() => { setClickedTransaction(row); setOpenEditTransaction(true); }} > <EditIcon /> </IconButton>
+                            <IconButton color={'danger' as ColorPaletteProp} onClick={() => { setSelected([row]); setOpenCD(true); }} > <DeleteIcon /> </IconButton>
+
+                          </Box>) : null
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </Sheet>
 
 
-      </React.Fragment >)
+        </React.Fragment >)
   );
 }

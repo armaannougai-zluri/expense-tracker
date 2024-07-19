@@ -17,9 +17,11 @@ import userEvent from '@testing-library/user-event';
 import { CurrencyRates } from '../entities/conversion_rates';
 import { ToastContainer, toast } from 'react-toastify';
 import { CurrencyOption, currencyOptions } from '../currencyOptions'
-import { ColorPaletteProp, Typography } from '@mui/joy';
+import { ColorPaletteProp, IconButton, Typography } from '@mui/joy';
 import { isNumber } from '@mui/x-data-grid/internals';
 import { Toast } from 'react-toastify/dist/components';
+import CancelIcon from '@mui/icons-material/Cancel';
+
 
 
 
@@ -40,11 +42,6 @@ const formatNumber = (num: number): number => {
         return parseFloat(num.toFixed(3));
     }
 };
-
-const inr: string = "INR";
-const eur: string = "EUR";
-const usd: string = "USD";
-const cad: string = "CAD";
 
 
 export default function AddTransaction({ open, setOpen, rows, setRows, currency_rates, page, setPage }: Props) {
@@ -106,7 +103,14 @@ export default function AddTransaction({ open, setOpen, rows, setRows, currency_
             </Button>
             <Modal open={open} onClose={() => setOpen(false)} >
                 <ModalDialog >
-                    <DialogTitle>Add a transaction</DialogTitle>
+                <Stack direction="row" justifyContent='space-between' alignItems='center'>
+                        <Typography level='h4'>
+                            Add a Transaction
+                        </Typography>
+                        <IconButton color={'danger' as ColorPaletteProp} onClick={() => { setOpen(false) }}>
+                            <CancelIcon></CancelIcon>
+                        </IconButton>
+                    </Stack>
                     <DialogContent>Fill in the transaction information.</DialogContent>
                     <form
 

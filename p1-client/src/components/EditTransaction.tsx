@@ -16,8 +16,10 @@ import Option from '@mui/joy/Option';
 import userEvent from '@testing-library/user-event';
 import { CurrencyRates } from '../entities/conversion_rates';
 import { CurrencyOption, currencyOptions } from '../currencyOptions';
-import { ColorPaletteProp, Typography } from '@mui/joy';
+import { ColorPaletteProp, IconButton, Typography } from '@mui/joy';
 import { toast } from 'react-toastify'
+import CancelIcon from '@mui/icons-material/Cancel';
+
 
 
 
@@ -29,7 +31,7 @@ interface Props {
     rows: Array<transaction>
     setRows: React.Dispatch<React.SetStateAction<Array<transaction>>>
     currency_rates?: CurrencyRates
-    page:number
+    page: number
 }
 
 const formatNumber = (num: number): number => {
@@ -50,7 +52,7 @@ const cad: string = "CAD";
 
 
 
-export default function EditTransaction({ open, setOpen, ts, rows, setRows, currency_rates , page }: Props) {
+export default function EditTransaction({ open, setOpen, ts, rows, setRows, currency_rates, page }: Props) {
     const [formData, setFormData] = useState<transaction>(ts as transaction)
     const [datePlaceholder, setDatePlaceholder] = useState<string>();
 
@@ -88,7 +90,7 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
         const data: Array<transaction> = await (await fetch('http://localhost:4000/transactions', {
             method: 'POST', headers: {
                 'Content-Type': 'application/json'
-            }, body: JSON.stringify({ page: page})
+            }, body: JSON.stringify({ page: page })
         })).json();
         const newData = data.map((item) => ({ ...item, date: new Date(item.date) }))
         setRows(newData);
@@ -113,9 +115,9 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
             return false;
         if (formData.original_amount_qty <= 0)
             return false;
-        
 
-        
+
+
         return true;
     }
 
@@ -131,7 +133,14 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
             </Button>
             <Modal open={open} onClose={() => setOpen(false)} >
                 <ModalDialog >
-                    <DialogTitle>Edit transaction</DialogTitle>
+                    <Stack direction="row" justifyContent='space-between' alignItems='center'>
+                        <Typography level='h4'>
+                            Edit a Transaction
+                        </Typography>
+                        <IconButton color={'danger' as ColorPaletteProp} onClick={() => { setOpen(false) }}>
+                            <CancelIcon></CancelIcon>
+                        </IconButton>
+                    </Stack>
                     <DialogContent>Fill in the transaction information.</DialogContent>
                     <form
 
@@ -143,7 +152,7 @@ export default function EditTransaction({ open, setOpen, ts, rows, setRows, curr
                                 console.log("validated sob")
                                 editTransactionProcess()
                                 setOpen(false);
-                            }else{
+                            } else {
                                 toast.error("validation failed");
                             }
                         }}
